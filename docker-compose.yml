@@ -1,0 +1,146 @@
+version: "3.9"
+
+# LakePulse AI — Full Stack
+# Usage:
+#   docker compose up --build          # dev (hot-reload)
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d  # prod
+
+services:
+
+  # ── PostgreSQL (timeseries lake data) ──────────────────────────────────────
+  db:
+    image: timescale/timescaledb:latest-pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-lakepulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB:       ${POSTGRES_DB:-lakepulse}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./infrastructure/scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lakepulse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (cache + pub/sub for IoT streams) ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  # ── MQTT Broker (IoT sensor ingestion) ────────────────────────────────────
+  #mqtt:
+  # image: eclipse-mosquitto:2
+  # restart: unless-stopped
+  # ports:
+  #   - "1883:1883"
+  #   - "9001:9001"
+  # volumes:
+  #   - ./infrastructure/docker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+  #   - mqtt_data:/mosquitto/data
+
+  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL:    postgresql+asyncpg://${POSTGRES_USER:-lakepulse}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-lakepulse}
+      REDIS_URL:       redis://redis:6379/0
+   #   MQTT_BROKER:     mqtt
+   #  MQTT_PORT:       "1883"
+      JWT_SECRET:      ${JWT_SECRET:-change_this_in_production_min_32_chars}
+      CPCB_API_KEY:    ${CPCB_API_KEY:-}
+      GEE_SERVICE_ACCOUNT: ${GEE_SERVICE_ACCOUNT:-}
+      MODEL_PATH:      /app/models/lake_lstm_v2_best.pt
+      SCALER_PATH:     /app/models/feature_scaler_v2.pkl
+    volumes:
+      - ./backend:/app
+      - model_artifacts:/app/models
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Celery Worker (background: CPCB ingestion, GEE jobs, alerts) ──────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:    postgresql+asyncpg://${POSTGRES_USER:-lakepulse}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-lakepulse}
+      REDIS_URL:       redis://redis:6379/0
+      CPCB_API_KEY:    ${CPCB_API_KEY:-}
+      GEE_SERVICE_ACCOUNT: ${GEE_SERVICE_ACCOUNT:-}
+    volumes:
+      - ./backend:/app
+      - model_artifacts:/app/models
+    depends_on:
+      - db
+      - redis
+    command: celery -A app.worker worker --loglevel=info --queues=ingestion,inference,alerts
+
+  # ── Celery Beat (scheduler: hourly CPCB pull, daily GEE, weekly reports) ──
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:    postgresql+asyncpg://${POSTGRES_USER:-lakepulse}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-lakepulse}
+      REDIS_URL:       redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    command: celery -A app.worker beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+  # ── React Frontend ─────────────────────────────────────────────────────────
+  #frontend:
+  # build:
+  #   context: ./frontend
+  #   dockerfile: Dockerfile
+  # restart: unless-stopped
+  # ports:
+  #   - "5173:5173"
+  # volumes:
+  #   - ./frontend:/app
+  #   - /app/node_modules
+  # environment:
+  #   VITE_API_BASE: http://localhost:8000
+  # command: npm run dev -- --host 0.0.0.0
+
+  # ── Nginx reverse proxy (prod: serves built frontend + proxies /api) ───────
+  #nginx:
+  # image: nginx:alpine
+  # restart: unless-stopped
+  # ports:
+  #   - "80:80"
+  #   - "443:443"
+  # volumes:
+  #   - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+  #   - ./frontend/dist:/usr/share/nginx/html
+  # depends_on:
+  #   - api
+
+volumes:
+  pg_data:
+  redis_data:
+ # mqtt_data:
+  model_artifacts:
