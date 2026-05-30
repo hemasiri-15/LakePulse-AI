@@ -13,6 +13,7 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "sqlite:///./lakepulse_dev.db"
 )
+print("DATABASE_URL =", DATABASE_URL)
 
 # Railway gives postgres:// but SQLAlchemy 1.4+ needs postgresql://
 if DATABASE_URL.startswith("postgres://"):
