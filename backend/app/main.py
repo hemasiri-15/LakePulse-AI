@@ -28,6 +28,12 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+from app.database import DATABASE_URL
+
+@app.get("/debug-db")
+def debug_db():
+    return {"database_url": DATABASE_URL[:50]}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],   # tighten to Vercel URL in production
