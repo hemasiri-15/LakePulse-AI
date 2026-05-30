@@ -58,7 +58,7 @@ def list_lakes(db: Session = Depends(get_db)):
         return cached
 
     lakes = db.query(models.Lake).order_by(models.Lake.health_score).all()
-    result = [LakeOut.from_orm(l).dict() for l in lakes]
+    result = [LakeOut.model_validate(l).model_dump() for l in lakes]
     cache_set("lakes:all", result, ttl_seconds=30)
     return result
 
