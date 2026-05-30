@@ -37,7 +37,7 @@ class SatelliteEvent(Base):
     __tablename__ = "satellite_events"
 
     id            = Column(Integer, primary_key=True, index=True)
-    lake_id       = Column(Integer, ForeignKey("lakes.id"), nullable=False, index=True)
+    lake_id       = Column(String, ForeignKey("lakes.id"), nullable=False, index=True)
     captured_date = Column(String(12), nullable=False)   # YYYY-MM-DD from GEE image date
     satellite     = Column(String(30), default="Sentinel-2")
     ndwi          = Column(Float)    # Normalised Difference Water Index  (−1 to +1)
@@ -51,16 +51,11 @@ class SatelliteEvent(Base):
     ingested_at   = Column(DateTime(timezone=True), server_default=func.now())
 
 
-# Create the table if it doesn't exist
-from app.database import engine
-SatelliteEvent.__table__.create(bind=engine, checkfirst=True)
-
-
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class SatelliteEventOut(BaseModel):
     id:            int
-    lake_id:       int
+    lake_id:       str
     captured_date: str
     satellite:     str
     ndwi:          Optional[float]
@@ -78,7 +73,7 @@ class SatelliteEventOut(BaseModel):
 
 
 class SatelliteIngest(BaseModel):
-    lake_id:       int
+    lake_id:       str
     captured_date: str          # YYYY-MM-DD
     satellite:     str = "Sentinel-2"
     ndwi:          Optional[float] = None
@@ -89,7 +84,7 @@ class SatelliteIngest(BaseModel):
 
 
 class ShrinkageReport(BaseModel):
-    lake_id:        int
+    lake_id:        str
     lake_name:      str
     baseline_date:  str
     baseline_km2:   float
@@ -102,7 +97,7 @@ class ShrinkageReport(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/{lake_id}/latest", response_model=SatelliteEventOut)
-def latest_event(lake_id: int, db: Session = Depends(get_db)):
+def latest_event(lake_id: str, db: Session = Depends(get_db)):
     event = (
         db.query(SatelliteEvent)
         .filter(SatelliteEvent.lake_id == lake_id)
@@ -116,7 +111,7 @@ def latest_event(lake_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{lake_id}/history", response_model=List[SatelliteEventOut])
 def event_history(
-    lake_id: int,
+    lake_id: str,
     months:  int = 12,
     db:      Session = Depends(get_db),
 ):
@@ -136,7 +131,7 @@ def event_history(
 
 
 @router.get("/{lake_id}/shrinkage", response_model=ShrinkageReport)
-def shrinkage_report(lake_id: int, db: Session = Depends(get_db)):
+def shrinkage_report(lake_id: str, db: Session = Depends(get_db)):
     """
     Returns % area change between the oldest and newest satellite record.
     A negative change_pct indicates lake shrinkage.
