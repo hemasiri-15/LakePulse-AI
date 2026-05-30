@@ -21,7 +21,7 @@ router = APIRouter()
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class LakeOut(BaseModel):
-    id:           int
+    id:           str
     name:         str
     city:         Optional[str]
     state:        Optional[str]
@@ -64,7 +64,7 @@ def list_lakes(db: Session = Depends(get_db)):
 
 
 @router.get("/{lake_id}", response_model=LakeOut)
-def get_lake(lake_id: int, db: Session = Depends(get_db)):
+def get_lake(lake_id: str, db: Session = Depends(get_db)):
     lake = db.query(models.Lake).filter(models.Lake.id == lake_id).first()
     if not lake:
         raise HTTPException(status_code=404, detail="Lake not found")
@@ -82,7 +82,7 @@ def create_lake(data: LakeCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{lake_id}/score")
-def recalculate_score(lake_id: int, db: Session = Depends(get_db)):
+def recalculate_score(lake_id: str, db: Session = Depends(get_db)):
     """
     Recomputes composite health score from the latest sensor reading.
     Weights: DO=25, pH=20, turbidity=20, TDS=15, WQI=20
