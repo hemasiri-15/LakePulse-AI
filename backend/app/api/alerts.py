@@ -50,7 +50,9 @@ class AlertOut(BaseModel):
     resolved_at: Optional[datetime]
 
     class Config:
-        from_attributes = Trueclass AlertCreate(BaseModel):
+        from_attributes = True
+
+class AlertCreate(BaseModel):
     lake_id:    int
     alert_type: str
     severity:   str          # critical | high | moderate
