@@ -29,21 +29,28 @@ GHMC_WEBHOOK_URL = os.getenv("GHMC_WEBHOOK_URL", "")   # set in Railway env vars
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class AlertOut(BaseModel):
-    id:           int
-    lake_id:      int
-    alert_type:   Optional[str]
-    severity:     Optional[str]
-    message:      Optional[str]
-    is_escalated: bool
-    action_taken: Optional[str]
-    created_at:   datetime
-    resolved_at:  Optional[datetime]
+    id: int
+    lake_id: str
+
+    severity: Optional[str]
+    category: Optional[str]
+    parameter: Optional[str]
+
+    value: Optional[float]
+    threshold: Optional[float]
+
+    message: Optional[str]
+    action: Optional[str]
+    agency: Optional[str]
+    timeline: Optional[str]
+
+    is_resolved: bool
+
+    created_at: datetime
+    resolved_at: Optional[datetime]
 
     class Config:
-        from_attributes = True
-
-
-class AlertCreate(BaseModel):
+        from_attributes = Trueclass AlertCreate(BaseModel):
     lake_id:    int
     alert_type: str
     severity:   str          # critical | high | moderate
@@ -54,7 +61,7 @@ class AlertCreate(BaseModel):
 
 @router.get("", response_model=List[AlertOut])
 def list_alerts(
-    lake_id:  Optional[int] = None,
+    lake_id:  Optional[str] = None,
     severity: Optional[str] = None,
     resolved: Optional[bool] = None,
     limit:    int = 50,
