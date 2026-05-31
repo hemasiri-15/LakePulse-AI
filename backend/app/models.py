@@ -104,14 +104,24 @@ class Prediction(Base):
 class Alert(Base):
     __tablename__ = "alerts"
 
-    id           = Column(Integer, primary_key=True, index=True)
-    lake_id      = Column(Integer, ForeignKey("lakes.id"), nullable=False, index=True)
-    alert_type   = Column(String(80))
-    severity     = Column(String(20))   # critical | high | moderate
-    message      = Column(Text)
-    is_escalated = Column(Boolean, default=False)
-    action_taken = Column(Text)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now())
-    resolved_at  = Column(DateTime(timezone=True), nullable=True)
+    id          = Column(Integer, primary_key=True, index=True)
+    lake_id     = Column(String, ForeignKey("lakes.id"), nullable=False, index=True)
+
+    severity    = Column(String)
+    category    = Column(String)
+    parameter   = Column(String)
+
+    value       = Column(Float)
+    threshold   = Column(Float)
+
+    message     = Column(Text)
+    action      = Column(Text)
+    agency      = Column(Text)
+    timeline    = Column(Text)
+
+    is_resolved = Column(Boolean, default=False)
+
+    created_at  = Column(DateTime)
+    resolved_at = Column(DateTime)
 
     lake = relationship("Lake", back_populates="alerts")
